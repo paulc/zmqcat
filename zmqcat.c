@@ -26,6 +26,13 @@ void check(void *p,char *s,int code) {
     }
 }
 
+void check_zero(int val,char *s, int code) {
+    if (val != 0) {
+        perror(s);
+        exit(code);
+    }
+}
+
 int starts_with(char *s, char *prefix) {
     int l1 = strlen(s);
     int l2 = strlen(prefix);
@@ -35,9 +42,10 @@ int starts_with(char *s, char *prefix) {
 
 void send(void *socket,sds data) {
     zmq_msg_t msg;
-    zmq_msg_init_data(&msg,data,sdslen(data),NULL,NULL);
-    zmq_send(socket,&msg,0);
-    zmq_msg_close(&msg);
+    check_zero(zmq_msg_init_data(&msg,data,sdslen(data),NULL,NULL),
+                   "zmq_msg_init_data",EX_UNAVAILABLE);
+    check_zero(zmq_send(socket,&msg,0),"zmq_send",EX_UNAVAILABLE);
+    check_zero(zmq_msg_close(&msg),"zmq_msg_close",EX_UNAVAILABLE);
 }
 
 sds recv(void *socket) {
@@ -87,10 +95,7 @@ int main(int argc, char **argv) {
     check(socket = zmq_socket(context,socket_type),"zmq_socket",EX_UNAVAILABLE);
 
     if (socket_type == ZMQ_REQ) {
-        if (zmq_connect(socket,transport) == -1) {
-            perror("zmq_connect");
-            exit(EX_UNAVAILABLE);
-        }
+        check_zero(zmq_connect(socket,transport),"zmq_connect",EX_UNAVAILABLE);
         sds local = sdsreadfile(stdin);
         send(socket,local);
         sds net = recv(socket);
@@ -98,10 +103,7 @@ int main(int argc, char **argv) {
         sdsfree(local);
         sdsfree(net);
     } else if (socket_type == ZMQ_REP) {
-        if (zmq_bind(socket,transport) == -1) {
-            perror("zmq_bind");
-            exit(EX_UNAVAILABLE);
-        }
+        check_zero(zmq_bind(socket,transport),"zmq_bind",EX_UNAVAILABLE);
         sds net = recv(socket);
         printf("Received: %d\n",(int) sdslen(net));
         sds local = sdsreadfile(stdin);

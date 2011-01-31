@@ -5,6 +5,4 @@ syntax: glob
 *.o
 *.a
 .DS_Store
-re
-readfile
-encrypt
+zmqcat
