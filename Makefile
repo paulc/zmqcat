@@ -6,7 +6,7 @@ LDFLAGS = -L/usr/local/lib -lzmq
 DEBUG ?= -g -rdynamic -ggdb
 
 OBJ = blowfish.o sds.o zmalloc.o sdsutils.o slre.o 
-PROGS = zmqcat
+PROGS = zmqcat zmqsend
 
 all : $(PROGS)
 
@@ -17,10 +17,15 @@ sdsutils.o: sdsutils.c sdsutils.h sds.h slre.h blowfish.h zmalloc.h
 slre.o: slre.c slre.h
 zmalloc.o: zmalloc.c config.h
 zmqcat.o: zmqcat.c
+zmqsend.o: zmqsend.c
+
 
 # Targets
 zmqcat : zmqcat.o $(OBJ)
 	$(CC) -o zmqcat $(LDFLAGS) $(DEBUG) zmqcat.o $(OBJ)
+
+zmqsend : zmqsend.o $(OBJ)
+	$(CC) -o zmqsend $(LDFLAGS) $(DEBUG) zmqsend.o $(OBJ)
 
 # Generic build targets
 .c.o:

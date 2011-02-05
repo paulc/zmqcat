@@ -75,6 +75,17 @@ sds sdsdecrypt(sds z,sds key) {
     return s;
 }
 
+sds sdsexec(char *cmd) {
+    FILE *fp = NULL;
+    sds buf;
+    if ((fp = popen(cmd,"r")) == NULL) {
+        return NULL;
+    }
+    buf = sdsreadfile(fp);
+    pclose(fp);
+    return buf;
+}
+
 sds sdsread(FILE *fp,size_t nbyte) {
     int n;
     size_t count = 0;
