@@ -10,11 +10,12 @@
 #include "sds.h"
 #include "sdsutils.h"
 
-#define USAGE           "Usage: zmqcat -t [REQ|REP] [-e <cmd>] [-n] [-v] <transport>"
+#define USAGE           "Usage: zmqcat -t [REQ|REP] [-e <cmd>] [-n] [-l] [-v] <transport>"
 
 #define USAGE_FULL      USAGE "\n\n" \
                         "   -t [REQ|REP]        Socket type (default: REQ)\n" \
                         "   -e <cmd>            Exec <cmd> on connect and pipe to socket\n" \
+                        "   -l                  Loop\n" \
                         "   -n                  Close stdin\n" \
                         "   -v                  Verbose\n" \
                         "\n" \
@@ -76,6 +77,7 @@ int main(int argc, char **argv) {
     int verbose = 0;
     int timeout = -1;
     int no_stdin = 0;
+    int loop = 0;
     char *exec = NULL;
 
     int i = 1;
@@ -96,6 +98,8 @@ int main(int argc, char **argv) {
             no_stdin = 1;
         } else if (strcmp(argv[i],"-n")==0) {
             no_stdin = 1;
+        } else if (strcmp(argv[i],"-l")==0) {
+            loop = 1;
         } else if (strcmp(argv[i],"-v")==0) {
             verbose++;
         } else if (strcmp(argv[i],"-h")==0) {
@@ -142,17 +146,23 @@ int main(int argc, char **argv) {
 
     sds rx_buffer = sdsempty();
     sds tx_buffer = sdsempty();
-    int local_done = 0, remote_done = 0, local_eof = 0;
+    int local_done = 0, 
+        remote_done = 0, 
+        local_eof = 0;
     
-    if (no_stdin && socket_type == ZMQ_REQ) {
-        if (exec != NULL) {
-            sdsfree(tx_buffer);
-            tx_buffer = sdsexec(exec);
-            printf("EXEC: %s\n",tx_buffer);
+
+    if (no_stdin) {
+        if (socket_type == ZMQ_REQ) {
+            if (exec != NULL) {
+                sdsfree(tx_buffer);
+                tx_buffer = sdsexec(exec);
+            }
+            send(remote,tx_buffer);
+            local_done = 1;
+            local_eof = 1;
+        } else if (socket_type == ZMQ_REP) {
+            local_eof = 1;
         }
-        send(remote,tx_buffer);
-        local_eof = 1;
-        local_done = 1;
     }
 
     int count = 0;
@@ -161,18 +171,28 @@ int main(int argc, char **argv) {
 
         int ready = zmq_poll(items,2,timeout);
 
-        printf("[%d] Poll...(%d): %d-%d\n",++count,ready,items[0].revents & ZMQ_POLLIN,items[1].revents & ZMQ_POLLIN);
+        if (verbose) 
+            fprintf(stderr,"[%d] Poll...(%d): %d-%d / local_done=%d, remote_done=%d\n",
+                ++count,ready,items[0].revents,items[1].revents,local_done,remote_done);
 
         if (items[0].revents & ZMQ_POLLIN) {
             int n = recv(remote,&rx_buffer);
-            printf("Remote: Read %d bytes\n",n);
+            if (verbose) printf("Remote: Read %d bytes\n",n);
             fwrite(rx_buffer,1,sdslen(rx_buffer),stdout);
-            remote_done = 1;
+            sdsfree(rx_buffer);
+            rx_buffer = sdsempty();
+            if (!loop) remote_done = 1;
         }
         if (items[0].revents & ZMQ_POLLOUT) {
-            if (local_eof) {
-                printf("Remote: Sent %d bytes\n",sdslen(tx_buffer));
+            if (exec != NULL) {
+                sdsfree(tx_buffer);
+                tx_buffer = sdsexec(exec);
                 send(remote,tx_buffer);
+                if (verbose) fprintf(stderr,"Remote: Sent %d bytes\n",(int) sdslen(tx_buffer));
+                if (!loop) local_done = 1;
+            } else if (local_eof) {
+                send(remote,tx_buffer);
+                if (verbose) fprintf(stderr,"Remote: Sent %d bytes\n",(int) sdslen(tx_buffer));
                 local_done = 1;
             }
         }
@@ -184,7 +204,7 @@ int main(int argc, char **argv) {
                     perror("Error reading from local fd");
                     exit(EX_IOERR);
                 } else if (n == 0) {
-                    printf("+++ Local EOF\n");
+                    if (verbose) fprintf(stderr,"+++ Local EOF\n");
                     items[1].events = 0;
                     local_eof = 1;
                     if (socket_type == ZMQ_REQ) {
@@ -192,7 +212,7 @@ int main(int argc, char **argv) {
                         local_done = 1;
                     }
                 } else {
-                    printf("Local: Read %d bytes\n",n);
+                    if (verbose) fprintf(stderr,"Local: Read %d bytes\n",n);
                     tx_buffer = sdscatlen(tx_buffer,buf,n);
                 }
             }

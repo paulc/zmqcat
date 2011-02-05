@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
-#include <unistd.h>
 
 #include <zmq.h>
 
@@ -95,20 +94,23 @@ int main(int argc, char **argv) {
     check(context = zmq_init(1),"zmq_init",EX_UNAVAILABLE);
     check(socket = zmq_socket(context,socket_type),"zmq_socket",EX_UNAVAILABLE);
 
-	sds local = sdsreadfile(stdin);
-
     if (socket_type == ZMQ_REQ) {
         check_zero(zmq_connect(socket,transport),"zmq_connect",EX_UNAVAILABLE);
+        sds local = sdsreadfile(stdin);
+        send(socket,local);
+        sds net = recv(socket);
+        printf("Received: %d\n",(int) sdslen(net));
+        sdsfree(local);
+        sdsfree(net);
     } else if (socket_type == ZMQ_REP) {
         check_zero(zmq_bind(socket,transport),"zmq_bind",EX_UNAVAILABLE);
-        zmq_pollitem_t items[1];
-        items[0].socket = socket;
-        items[0].events = ZMQ_POLLIN;
-        int ready = zmq_poll(items,1,10);
-        printf("Poll: %d\n",ready);
+        sds net = recv(socket);
+        printf("Received: %d\n",(int) sdslen(net));
+        sds local = sdsreadfile(stdin);
+        send(socket,local);
+        sdsfree(local);
+        sdsfree(net);
     }
-	send(socket,local);
-	sdsfree(local);
 
     zmq_close(socket);
     zmq_term(context);

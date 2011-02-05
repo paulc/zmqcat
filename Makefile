@@ -1,7 +1,7 @@
 
 CC = gcc
 AR = ar
-CFLAGS = -Wall -O2 -std=gnu99 -I/usr/local/include
+CFLAGS = -Wall -O0 -std=gnu99 -I/usr/local/include
 LDFLAGS = -L/usr/local/lib -lzmq
 DEBUG ?= -g -rdynamic -ggdb
 
@@ -18,7 +18,6 @@ slre.o: slre.c slre.h
 zmalloc.o: zmalloc.c config.h
 zmqcat.o: zmqcat.c
 zmqsend.o: zmqsend.c
-
 
 # Targets
 zmqcat : zmqcat.o $(OBJ)
