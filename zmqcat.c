@@ -10,12 +10,13 @@
 #include "sds.h"
 #include "sdsutils.h"
 
-#define USAGE           "Usage: zmqcat -t [REQ|REP] [-e <cmd>] [-n] [-l] [-v] <transport>"
+#define USAGE           "Usage: zmqcat -t [REQ|REP] [-e <cmd>] [-s <delim>] [-n] [-l] [-v] <transport>"
 
 #define USAGE_FULL      USAGE "\n\n" \
                         "   -t [REQ|REP]        Socket type (default: REQ)\n" \
                         "   -e <cmd>            Exec <cmd> on connect and pipe to socket\n" \
                         "   -l                  Loop\n" \
+                        "   -s <delim>          Split stdin on <delim>\n" \
                         "   -n                  Close stdin\n" \
                         "   -v                  Verbose\n" \
                         "\n" \
@@ -77,6 +78,7 @@ int main(int argc, char **argv) {
     int verbose = 0;
     int timeout = -1;
     int no_stdin = 0;
+    int split = 0;
     int loop = 0;
     char *exec = NULL;
 
@@ -178,16 +180,23 @@ int main(int argc, char **argv) {
         if (items[0].revents & ZMQ_POLLIN) {
             int n = recv(remote,&rx_buffer);
             if (verbose) printf("Remote: Read %d bytes\n",n);
-            fwrite(rx_buffer,1,sdslen(rx_buffer),stdout);
-            sdsfree(rx_buffer);
-            rx_buffer = sdsempty();
+            if (exec != NULL) {
+                printf("POLLIN\n");
+                fwrite(rx_buffer,1,sdslen(rx_buffer),stdout);
+                sdsfree(rx_buffer);
+                rx_buffer = sdsempty();
+            }
             if (!loop) remote_done = 1;
         }
         if (items[0].revents & ZMQ_POLLOUT) {
             if (exec != NULL) {
+                printf("POLLOUT\n");
                 sdsfree(tx_buffer);
-                tx_buffer = sdsexec(exec);
+                tx_buffer = sdspipe(exec,rx_buffer);
+                printf(">>%s",tx_buffer);
                 send(remote,tx_buffer);
+                sdsfree(rx_buffer);
+                rx_buffer = sdsempty();
                 if (verbose) fprintf(stderr,"Remote: Sent %d bytes\n",(int) sdslen(tx_buffer));
                 if (!loop) local_done = 1;
             } else if (local_eof) {

@@ -11,6 +11,7 @@ int char_count(char *s, char c);
 int sdscount(sds s,char c);
 int sdsstartswith(sds s,sds prefix);
 sds sdsexec(char *cmd);
+sds sdspipe(char *cmd,sds input);
 sds sdsread(FILE *fp,size_t nbyte);
 sds sdsreadfile(FILE *fp);
 sds sdsreaddelim(FILE *fp,char *delim,int len);

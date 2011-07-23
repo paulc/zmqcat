@@ -86,6 +86,23 @@ sds sdsexec(char *cmd) {
     return buf;
 }
 
+sds sdspipe(char *cmd,sds input) {
+    FILE *fp = NULL;
+    size_t written = 0;
+    sds buf;
+    if ((fp = popen(cmd,"r+")) == NULL) {
+        return NULL;
+    }
+    while (written < sdslen(input)) {
+        written += fwrite(input + written,1,sdslen(input)-written,fp);
+        if (ferror(fp)) return NULL;
+    }
+    buf = sdsreadfile(fp);
+    pclose(fp);
+    return buf;
+}
+
+
 sds sdsread(FILE *fp,size_t nbyte) {
     int n;
     size_t count = 0;
